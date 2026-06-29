@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/mod/modfile"
 
 	"github.com/mabrarov/govulncheck-sarif-finding-location/pkg/sarif"
@@ -23,30 +25,32 @@ func main() {
 }
 
 func runMain() int {
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
 	flag.Parse()
 
 	if reportFile == nil || *reportFile == "" {
-		// TODO: log error
+		logger.Error().Msg("-report is required")
 		return 1
 	}
 	if moduleFile == nil || *moduleFile == "" {
-		// TODO: log error
+		logger.Error().Msg("-gomod is required")
 		return 1
 	}
 	if outFile == nil || *outFile == "" {
-		// TODO: log error
+		logger.Error().Msg("-out is required")
 		return 1
 	}
 
 	report, err := loadReport(*reportFile)
 	if err != nil {
-		// TODO: log error
+		logger.Error().Err(err).Str("report_file", *reportFile).Msg("failed to load govulncheck SARIF report")
 		return 1
 	}
 
 	moduleLocations, err := getModuleLocations(*moduleFile)
 	if err != nil {
-		// TODO: log error
+		logger.Error().Err(err).Str("module_file", *moduleFile).Msg("failed to load go.mod file")
 		return 1
 	}
 
@@ -74,7 +78,7 @@ func runMain() int {
 
 	err = saveReport(report, *outFile)
 	if err != nil {
-		// TODO: log error
+		logger.Error().Err(err).Str("out_file", *outFile).Msg("failed to save SARIF report")
 		return 1
 	}
 
@@ -82,6 +86,7 @@ func runMain() int {
 }
 
 const (
+	stdoutOutFile           = "-"
 	moduleVersionDelim      = "@"
 	goStdModulePath         = "stdlib"
 	goStdModulePrefix       = goStdModulePath + moduleVersionDelim
@@ -107,17 +112,23 @@ func loadReport(filename string) (*sarif.Report, error) {
 }
 
 func saveReport(report *sarif.Report, filename string) error {
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		return fmt.Errorf("open output SARIF file: %w", err)
+	var writer io.Writer
+	if filename == stdoutOutFile {
+		writer = os.Stdout
+	} else {
+		file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			return fmt.Errorf("open output SARIF file: %w", err)
+		}
+		defer func() {
+			_ = file.Close()
+		}()
+		writer = file
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
-	encoder := json.NewEncoder(file)
+	encoder := json.NewEncoder(writer)
 	encoder.SetIndent("", "  ")
-	err = encoder.Encode(report)
+	err := encoder.Encode(report)
 	if err != nil {
 		return fmt.Errorf("encode output SARIF file: %w", err)
 	}
