@@ -86,11 +86,12 @@ func runMain() int {
 }
 
 const (
-	stdoutOutFile           = "-"
-	moduleVersionDelim      = "@"
-	goStdModulePath         = "stdlib"
-	goStdModulePrefix       = goStdModulePath + moduleVersionDelim
-	moduleResultLocationURI = "go.mod"
+	stdoutOutFile                        = "-"
+	moduleVersionDelim                   = "@"
+	goStdModulePath                      = "stdlib"
+	goStdModulePrefix                    = goStdModulePath + moduleVersionDelim
+	moduleResultLocationURI              = "go.mod"
+	defaultModuleResultLocationStartLine = 1
 )
 
 func loadReport(filename string) (*sarif.Report, error) {
@@ -116,7 +117,7 @@ func saveReport(report *sarif.Report, filename string) error {
 	if filename == stdoutOutFile {
 		writer = os.Stdout
 	} else {
-		file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+		file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 		if err != nil {
 			return fmt.Errorf("open output SARIF file: %w", err)
 		}
@@ -195,6 +196,9 @@ func setResultLocationLine(result *sarif.Result, line *modfile.Line) {
 	for i := range result.Locations {
 		location := &result.Locations[i]
 		if location.PhysicalLocation.ArtifactLocation.URI != moduleResultLocationURI {
+			continue
+		}
+		if location.PhysicalLocation.Region.StartLine != defaultModuleResultLocationStartLine {
 			continue
 		}
 		location.PhysicalLocation.Region.StartLine = line.Start.Line
