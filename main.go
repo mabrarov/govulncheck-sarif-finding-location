@@ -86,12 +86,10 @@ func runMain() int {
 }
 
 const (
-	stdoutOutFile                        = "-"
-	moduleVersionDelim                   = "@"
-	goStdModulePath                      = "stdlib"
-	goStdModulePrefix                    = goStdModulePath + moduleVersionDelim
-	moduleResultLocationURI              = "go.mod"
-	defaultModuleResultLocationStartLine = 1
+	stdoutOutFile      = "-"
+	moduleVersionDelim = "@"
+	goStdModulePath    = "stdlib"
+	goStdModulePrefix  = goStdModulePath + moduleVersionDelim
 )
 
 func loadReport(filename string) (*sarif.Report, error) {
@@ -150,6 +148,7 @@ func getModuleLocations(moduleFile string) (map[string]*modfile.Line, error) {
 
 	requiredModuleCount := len(parsedModule.Require)
 	moduleLocations := make(map[string]*modfile.Line, requiredModuleCount+1)
+
 	if parsedModule.Go != nil && parsedModule.Go.Syntax != nil {
 		moduleLocations[goStdModulePath] = parsedModule.Go.Syntax
 	}
@@ -161,8 +160,8 @@ func getModuleLocations(moduleFile string) (map[string]*modfile.Line, error) {
 		if requireDirective.Syntax == nil {
 			continue
 		}
-		moduleURI := requireDirective.Mod.Path + moduleVersionDelim + requireDirective.Mod.Version
-		moduleLocations[moduleURI] = requireDirective.Syntax
+		module := requireDirective.Mod.Path + moduleVersionDelim + requireDirective.Mod.Version
+		moduleLocations[module] = requireDirective.Syntax
 	}
 
 	return moduleLocations, nil
@@ -195,10 +194,13 @@ func getResultCauseModule(result *sarif.Result) (string, bool) {
 func setResultLocationLine(result *sarif.Result, line *modfile.Line) {
 	for i := range result.Locations {
 		location := &result.Locations[i]
-		if location.PhysicalLocation.ArtifactLocation.URI != moduleResultLocationURI {
+		if location.PhysicalLocation.ArtifactLocation.URIBaseID != sarif.SrcRootID {
 			continue
 		}
-		if location.PhysicalLocation.Region.StartLine != defaultModuleResultLocationStartLine {
+		if location.PhysicalLocation.ArtifactLocation.URI != sarif.GoModLocationURI {
+			continue
+		}
+		if location.PhysicalLocation.Region.StartLine != sarif.GoModLocationStartLine {
 			continue
 		}
 		location.PhysicalLocation.Region.StartLine = line.Start.Line

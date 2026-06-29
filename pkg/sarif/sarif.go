@@ -178,12 +178,6 @@ type PhysicalLocation struct {
 	Region           Region           `json:"region,omitempty"`
 }
 
-const (
-	SrcRootID    = "%SRCROOT%"
-	GoRootID     = "%GOROOT%"
-	GoModCacheID = "%GOMODCACHE%"
-)
-
 // ArtifactLocation is a path to an offending file.
 type ArtifactLocation struct {
 	// URI is a path relative to URIBaseID.
@@ -200,3 +194,9 @@ type Region struct {
 	EndLine     int `json:"endLine,omitempty"`
 	EndColumn   int `json:"endColumn,omitempty"`
 }
+
+const (
+	SrcRootID              = "%SRCROOT%"
+	GoModLocationURI       = "go.mod"
+	GoModLocationStartLine = 1
+)
