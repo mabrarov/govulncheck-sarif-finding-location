@@ -1,13 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/owenrumney/go-sarif/v3/pkg/report/v210/sarif"
 	"golang.org/x/mod/modfile"
+
+	"github.com/mabrarov/govulncheck-sarif-finding-location/pkg/sarif"
 )
 
 var (
@@ -36,7 +38,7 @@ func runMain() int {
 		return 1
 	}
 
-	report, err := sarif.Open(*reportFile)
+	report, err := loadReport(*reportFile)
 	if err != nil {
 		// TODO: log error
 		return 1
@@ -48,15 +50,10 @@ func runMain() int {
 		return 1
 	}
 
-	for _, run := range report.Runs {
-		if run == nil {
-			continue
-		}
-		for _, result := range run.Results {
-			if result == nil {
-				continue
-			}
-
+	for runIdx := range report.Runs {
+		run := &report.Runs[runIdx]
+		for resultIdx := range run.Results {
+			result := &run.Results[resultIdx]
 			module, found := getResultCauseModule(result)
 			if !found {
 				continue
@@ -75,7 +72,7 @@ func runMain() int {
 		}
 	}
 
-	err = report.WriteFile(*outFile)
+	err = saveReport(report, *outFile)
 	if err != nil {
 		// TODO: log error
 		return 1
@@ -85,11 +82,48 @@ func runMain() int {
 }
 
 const (
+	moduleVersionDelim      = "@"
 	goStdModulePath         = "stdlib"
+	goStdModulePrefix       = goStdModulePath + moduleVersionDelim
 	moduleResultLocationURI = "go.mod"
 )
 
-var goStdModulePrefix = goStdModulePath + "@"
+func loadReport(filename string) (*sarif.Report, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("open govulncheck SARIF file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	var report sarif.Report
+	err = json.NewDecoder(file).Decode(&report)
+	if err != nil {
+		return nil, fmt.Errorf("decode govulncheck SARIF file: %w", err)
+	}
+
+	return &report, nil
+}
+
+func saveReport(report *sarif.Report, filename string) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return fmt.Errorf("open output SARIF file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(report)
+	if err != nil {
+		return fmt.Errorf("encode output SARIF file: %w", err)
+	}
+
+	return nil
+}
 
 func getModuleLocations(moduleFile string) (map[string]*modfile.Line, error) {
 	moduleFileContent, err := os.ReadFile(moduleFile)
@@ -115,7 +149,7 @@ func getModuleLocations(moduleFile string) (map[string]*modfile.Line, error) {
 		if requireDirective.Syntax == nil {
 			continue
 		}
-		moduleURI := fmt.Sprintf("%s@%s", requireDirective.Mod.Path, requireDirective.Mod.Version)
+		moduleURI := requireDirective.Mod.Path + moduleVersionDelim + requireDirective.Mod.Version
 		moduleLocations[moduleURI] = requireDirective.Syntax
 	}
 
@@ -134,52 +168,25 @@ func getResultCauseModule(result *sarif.Result) (string, bool) {
 		}
 
 		threadFlow := codeFlow.ThreadFlows[threadFlowCount-1]
-		if threadFlow == nil {
-			continue
-		}
-
 		locationCount := len(threadFlow.Locations)
 		if locationCount == 0 {
 			continue
 		}
 
 		location := threadFlow.Locations[locationCount-1]
-		if location == nil {
-			continue
-		}
-		if location.Module == nil {
-			continue
-		}
-
-		return *location.Module, true
+		return location.Module, true
 	}
 
 	return "", false
 }
 
 func setResultLocationLine(result *sarif.Result, line *modfile.Line) {
-	for _, location := range result.Locations {
-		if location == nil {
+	for i := range result.Locations {
+		location := &result.Locations[i]
+		if location.PhysicalLocation.ArtifactLocation.URI != moduleResultLocationURI {
 			continue
 		}
-		if location.PhysicalLocation == nil {
-			continue
-		}
-		if location.PhysicalLocation.ArtifactLocation == nil {
-			continue
-		}
-		if location.PhysicalLocation.ArtifactLocation.URI == nil {
-			continue
-		}
-		if location.PhysicalLocation.Region == nil {
-			continue
-		}
-		if *location.PhysicalLocation.ArtifactLocation.URI != moduleResultLocationURI {
-			continue
-		}
-		location.PhysicalLocation.Region.StartLine = &line.Start.Line
-		location.PhysicalLocation.Region.StartColumn = &line.Start.LineRune
-		location.PhysicalLocation.Region.ByteOffset = line.Start.Byte
+		location.PhysicalLocation.Region.StartLine = line.Start.Line
 		return
 	}
 }
