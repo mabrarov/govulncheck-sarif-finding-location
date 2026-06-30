@@ -11,7 +11,7 @@ GOFUMPT         ?= gofumpt
 GOFUMPT_VERSION ?= v0.9.2
 MAKEFILE_DIR    := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 PREFIX          ?= $(MAKEFILE_DIR)/.build
-BINNAME         ?= govulncheck-sarif-finding-location
+BINNAME         ?= govulncheck-sarif-result-location
 
 # https://tensin.name/blog/makefile-escaping.html
 define noexpand

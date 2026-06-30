@@ -1,4 +1,4 @@
-module github.com/mabrarov/govulncheck-sarif-finding-location
+module github.com/mabrarov/govulncheck-sarif-result-location
 
 go 1.24.0
 

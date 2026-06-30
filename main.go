@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/mod/modfile"
 
-	"github.com/mabrarov/govulncheck-sarif-finding-location/pkg/sarif"
+	"github.com/mabrarov/govulncheck-sarif-result-location/pkg/sarif"
 )
 
 var (
